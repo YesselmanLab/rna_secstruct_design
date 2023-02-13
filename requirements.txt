@@ -1,0 +1,5 @@
+wheel>=0.22
+click
+pandas
+rna_secstruct @ git+https://github.com/jyesselm/rna_secstruct@main
+rna_seq_tools
