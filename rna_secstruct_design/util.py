@@ -1,5 +1,10 @@
 import re
+import random
 from rna_secstruct.secstruct import SecStruct
+
+BASEPAIRS = ["AU", "UA", "GC", "CG", "GU", "UG"]
+BASEPAIRS_WC = ["AU", "UA", "GC", "CG"]
+BASEPAIRS_GU = ["GU", "UG"]
 
 
 def str_to_range(x):
@@ -23,6 +28,29 @@ def str_to_range(x):
         ),
         [],
     )
+
+
+def random_basepair():
+    """
+    Return a random base pair.
+    :return: A random base pair as a string.
+    """
+    return random.choice(BASEPAIRS)
+
+
+def random_gu_basepair():
+    return random.choice(BASEPAIRS_GU)
+
+
+def random_wc_basepair():
+    return random.choice(BASEPAIRS_WC)
+
+
+def random_weighted_basepair(frac_gu=0.3):
+    if random.random() > frac_gu:
+        return random_wc_basepair()
+    else:
+        return random_gu_basepair()
 
 
 def max_repeating_nucleotides(sequence: str) -> dict:
@@ -57,6 +85,7 @@ def max_gc_stretch(sequence, structure) -> int:
     :param sequence: sequence of RNA
     :param structure: structure of RNA
     """
+
     def helix_max_gc_stretch(s1, s2):
         i = -1
         j = len(s2)
@@ -90,3 +119,26 @@ def max_gc_stretch(sequence, structure) -> int:
         if current_gc_stretch > longest_gc_stretch:
             longest_gc_stretch = current_gc_stretch
     return longest_gc_stretch
+
+
+def can_form_helix(sequence1: str, sequence2: str) -> bool:
+    """
+    Check if two RNA sequences can form a helix.
+
+    Given two RNA sequences, returns True if the sequences can form a helix and
+    False otherwise. A helix is formed when the base pairs of the two sequences
+    complement each other in the manner sequence1[i] and sequence2[-i-1].
+
+    :param sequence1: The first RNA sequence as a string.
+    :param sequence2: The second RNA sequence as a string.
+    :return: True if the sequences can form a helix, False otherwise.
+    """
+    if len(sequence1) != len(sequence2):
+        return False
+
+    base_pairs = {"AU", "UA", "GC", "CG", "GU", "UG"}
+    for i in range(len(sequence1)):
+        if f"{sequence1[i]}{sequence2[-i - 1]}" not in base_pairs:
+            return False
+
+    return True

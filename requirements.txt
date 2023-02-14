@@ -1,5 +1,8 @@
 wheel>=0.22
 click
 pandas
+pyyaml
+# written by our group
 rna_secstruct @ git+https://github.com/jyesselm/rna_secstruct@main
 rna_seq_tools
+vienna

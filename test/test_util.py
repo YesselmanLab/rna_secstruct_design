@@ -1,4 +1,5 @@
 from rna_secstruct_design.util import (
+    can_form_helix,
     str_to_range,
     max_repeating_nucleotides,
     max_gc_stretch,
@@ -94,4 +95,8 @@ def test_max_gc_stretch():
     assert max_gc_stretch("CAGGAAAACCUG", "((((....))))") == 2
 
 
-
+def test_can_form_helix():
+    """Test can_form_helix"""
+    assert can_form_helix("GAC", "GUC")
+    assert can_form_helix("AGAC", "GUCU")
+    assert not can_form_helix("GUC", "GUG")
