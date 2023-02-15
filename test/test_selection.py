@@ -31,18 +31,18 @@ class TestMotifSelection:
 class TestGetSelection:
     def test_motif(self):
         params = {"motif": {"m_type": "HELIX"}}
-        ss = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
-        selection = get_selection(ss.sequence, ss.structure, params)
+        secstruct = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
+        selection = get_selection(secstruct, params)
         assert selection == [2, 3, 4, 5, 10, 11, 12, 13]
 
     def test_flanks(self):
         params = {"flanks": {}}
-        ss = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
-        selection = get_selection(ss.sequence, ss.structure, params)
+        secstruct = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
+        selection = get_selection(secstruct, params)
         assert selection == [0, 1, 5, 10]
 
     def test_range(self):
         params = {"range": "1-5"}
-        ss = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
-        selection = get_selection(ss.sequence, ss.structure, params)
+        secstruct = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
+        selection = get_selection(secstruct, params)
         assert selection == [0, 1, 2, 3, 4]

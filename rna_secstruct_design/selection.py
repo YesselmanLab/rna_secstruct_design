@@ -9,20 +9,21 @@ def selection_from_file(filename):
     return selection
 
 
-def get_selection(sequence, structure, params):
-    ss = SecStruct(sequence, structure)
+def get_selection(secstruct, params):
     pos = []
     for k, v in params.items():
         if k.startswith("motif"):
-            pos.extend(get_selection_from_motifs(ss, v))
+            pos.extend(get_selection_from_motifs(secstruct, v))
         elif k.startswith("flanks"):
-            pos.extend(get_all_flanking_pairs(ss))
+            pos.extend(get_all_flanking_pairs(secstruct))
         elif k.startswith("range"):
-            pos.extend([x-1 for x in str_to_range(v)])
+            pos.extend([x - 1 for x in str_to_range(v)])
+    if "invert" in params:
+        pos = invert_exclude_list(pos, len(secstruct.sequence))
     return pos
 
 
-def get_selection_from_motifs(ss: SecStruct, params):
+def get_selection_from_motifs(secstruct: SecStruct, params):
     def extend_strands(strands, extend, seq_len):
         """
         Extend strands by a given number of positions
@@ -57,21 +58,29 @@ def get_selection_from_motifs(ss: SecStruct, params):
     extend_flank = params.pop("extend_flank", 0)
     get_named_motif(params)
     msg = MotifSearchParams(**params)
-    motifs = ss.get_motifs(msg)
+    motifs = secstruct.get_motifs(msg)
     for motif in motifs:
         strands = motif.strands.copy()
         if extend_flank > 0:
-            strands = extend_strands(strands, extend_flank, len(ss.sequence))
+            strands = extend_strands(strands, extend_flank, len(secstruct.sequence))
         for s in strands:
             pos += s
     return pos
 
 
-def get_all_flanking_pairs(ss: SecStruct):
+# TODO helix after or before single strand count as flank?
+def get_all_flanking_pairs(secstruct: SecStruct):
     pos = []
-    for motif in ss:
+    for motif in secstruct:
         if motif.is_helix():
             continue
         for strand in motif.strands:
             pos.extend([strand[0], strand[-1]])
     return pos
+
+
+def invert_exclude_list(exclude, seq_len):
+    allowed = list(range(seq_len))
+    for e in exclude:
+        allowed.remove(e)
+    return allowed
