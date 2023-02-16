@@ -1,4 +1,12 @@
 import itertools
+from typing import List
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, order=True)
+class Mutation:
+    name: str
+    sequence: str
 
 
 def possible_nucleotide_mutations(nucleotide: str) -> list:
@@ -65,7 +73,7 @@ def find_double_mutations(sequence: str, exclude: list) -> list:
     return result
 
 
-def find_multiple_mutations(sequence: str, num: int, exclude: list) -> list:
+def find_multiple_mutations(sequence: str, num: int, exclude: list) -> List[Mutation]:
     """
     Given a RNA sequence and a list indicating mutation positions, returns all new
     sequences with multiple mutations at different allowed positions.
@@ -81,11 +89,12 @@ def find_multiple_mutations(sequence: str, num: int, exclude: list) -> list:
     combos = itertools.product(allowed_pos, repeat=num)
     count = 0
     seen = []
-    seqs = []
+    results = []
     for muts in combos:
-        if(len(set(muts)) != len(muts)):
+        if len(set(muts)) != len(muts):
             continue
-        key = "-".join([str(x) for x in sorted(muts)])
+        muts = sorted(muts)
+        key = "-".join([str(x) for x in muts])
         if key in seen:
             continue
         seen.append(key)
@@ -97,9 +106,82 @@ def find_multiple_mutations(sequence: str, num: int, exclude: list) -> list:
             mut_pos.append(muts_at_pos)
         mut_combos = list(itertools.product(*mut_pos))
         for mut_combo in mut_combos:
+            names = []
             new_sequence = sequence[:]
             for mut in mut_combo:
-                new_sequence = new_sequence[:mut[0]] + mut[1] + new_sequence[mut[0] + 1 :]
-            seqs.append(new_sequence)
+                names.append(new_sequence[mut[0]] + str(mut[0] + 1) + mut[1])
+                new_sequence = (
+                    new_sequence[: mut[0]] + mut[1] + new_sequence[mut[0] + 1 :]
+                )
+            results.append(Mutation("_".join(names), new_sequence))
         count += 1
-    return seqs
+    return results
+
+
+def valid_base_pairs(base_pair: str) -> list:
+    """Return other valid base pairs if supplied base pair is valid.
+
+    Given a base pair as a string, returns the other valid base pairs if the
+    supplied base pair is valid.
+
+    :param base_pair: A base pair as a string.
+    :return: A list of other valid base pairs as strings.
+    """
+    if len(base_pair) != 2:
+        raise ValueError("Base pair must be a 2-letter string.")
+    valid_pairs = ["CG", "GC", "AU", "UA"]
+    if base_pair not in valid_pairs:
+        raise ValueError("Supplied base pair is not valid.")
+    return [pair for pair in valid_pairs if pair != base_pair]
+
+
+def valid_base_pairs_GU(base_pair: str) -> list:
+    """Return other valid base pairs if supplied base pair is valid.
+
+    Given a base pair as a string, returns the other valid base pairs if the
+    supplied base pair is valid. The valid base pairs are `CG`, `GC`, `AU`,
+    `UA`, `GU`, and `UG`.
+
+    :param base_pair: A base pair as a string.
+    :return: A list of other valid base pairs as strings.
+    """
+    if len(base_pair) != 2:
+        raise ValueError("Base pair must be a 2-letter string.")
+    valid_pairs = ["CG", "GC", "AU", "UA", "GU", "UG"]
+    if base_pair not in valid_pairs:
+        raise ValueError("Supplied base pair is not valid.")
+    return [pair for pair in valid_pairs if pair != base_pair]
+
+
+def mutate_base_pairs(sequence: str, secondary_structure: str) -> list:
+    """Return new sequences with mutated base pairs.
+
+    Given a RNA sequence and its secondary structure as a string of `(` and
+    `)` characters, returns all new sequences with mutations in their base
+    pairs using the `valid_base_pairs_GU` function.
+
+    :param sequence: A RNA sequence as a string.
+    :param secondary_structure: A secondary structure as a string of `(` and
+        `)` characters.
+    :return: A list of new sequences with mutated base pairs as strings.
+    """
+    if len(sequence) != len(secondary_structure):
+        raise ValueError("Seq and sec str must have same length.")
+    stack = []
+    result = []
+    for i, char in enumerate(secondary_structure):
+        if char == "(":
+            stack.append(i)
+        elif char == ")":
+            j = stack.pop()
+            base_pair = sequence[j] + sequence[i]
+            for new_base_pair in valid_base_pairs_GU(base_pair):
+                new_sequence = (
+                    sequence[:j]
+                    + new_base_pair[0]
+                    + sequence[j + 1 : i]
+                    + new_base_pair[1]
+                    + sequence[i + 1 :]
+                )
+                result.append(new_sequence)
+    return result

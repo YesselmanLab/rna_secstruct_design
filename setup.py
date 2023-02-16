@@ -35,6 +35,12 @@ setup(
     package_dir={'rna_secstruct_design': 'rna_secstruct_design'},
     py_modules=[
         'rna_secstruct_design/cli'
+        'rna_secstruct_design/constraints',
+        'rna_secstruct_design/helix_randomizer',
+        'rna_secstruct_design/logger',
+        'rna_secstruct_design/mutations',
+        'rna_secstruct_design/selection',
+        'rna_secstruct_design/util',
     ],
     include_package_data=True,
     install_requires=requirements,
@@ -48,6 +54,7 @@ setup(
     ],
     entry_points = {
         'console_scripts' : [
+            'rna-struct-design = rna_secstruct_design.cli:cli'
         ]
     }
 )

@@ -1,5 +1,9 @@
 from rna_secstruct import SecStruct
-from rna_secstruct_design.selection import get_selection, get_selection_from_motifs
+from rna_secstruct_design.selection import (
+    get_selection,
+    get_selection_from_motifs,
+    get_seq_struct,
+)
 
 
 class TestMotifSelection:
@@ -46,3 +50,17 @@ class TestGetSelection:
         secstruct = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
         selection = get_selection(secstruct, params)
         assert selection == [0, 1, 2, 3, 4]
+
+
+def test_seq_struct():
+    params = {"seq_struct": {"sequence": "GGGGAAAACCCC", "structure": "((((....))))"}}
+    secstruct = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
+    selection = get_selection(secstruct, params)
+    assert selection == [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+
+
+def test_seq_struct_2():
+    params = {"seq_struct": {"sequence": "GGGG&CCCC", "structure": "((((&))))"}}
+    secstruct = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
+    selection = get_selection(secstruct, params)
+    assert selection == [2, 3, 4, 5, 10, 11, 12, 13]

@@ -1,98 +1,56 @@
 import click
-import random
+import pandas as pd
 
-from seq_tools import SequenceStructure
+from vienna import fold
+from rna_secstruct.secstruct import SecStruct
+from rna_secstruct_design.selection import selection_from_file, get_selection
+from rna_secstruct_design.logger import setup_applevel_logger, get_logger
+from rna_secstruct_design.mutations import find_multiple_mutations
+from rna_secstruct_design.helix_randomizer import HelixRandomizer
 
-def random_helix(length, gu=0) -> SequenceStructure:
+log = get_logger("CLI")
+
+
+def validate_dataframe(df) -> None:
     """
-    generate a random helix
+    validates a dataframe to have a column named `sequence` and `name`
+    :param df: dataframe with sequences
+    :return: None
     """
-    seq_1 = ""
-    seq_2 = ""
-    basepairs = ["AU", "UA", "GC", "CG", "GU", "UG"]
-    basepairs_wc = ["AU", "UA", "GC", "CG"]
-    bps = []
-    for _ in range(0, gu):
-        bps.append(random.choice(basepairs))
-    for _ in range(0, length - gu):
-        bps.append(random.choice(basepairs_wc))
-    random.shuffle(bps)
-    for bp in bps:
-        seq_1 += bp[0]
-        seq_2 = bp[1] + seq_2
-    seq = seq_1 + "&" + seq_2
-    ss = "(" * length + "&" + ")" * length
-    return SequenceStructure(seq, ss)
+    if "sequence" not in df.columns:
+        raise ValueError("sequence column not found")
+    if "structure" not in df.columns:
+        raise ValueError("structure column not found")
+    if "name" not in df.columns:
+        df["name"] = [f"seq_{i}" for i in range(len(df))]
 
 
-
-
-def valid_base_pairs(base_pair: str) -> list:
-    """Return other valid base pairs if supplied base pair is valid.
-
-    Given a base pair as a string, returns the other valid base pairs if the
-    supplied base pair is valid.
-
-    :param base_pair: A base pair as a string.
-    :return: A list of other valid base pairs as strings.
+def get_input_dataframe(
+    seq,
+    struct,
+    csv_file,
+) -> pd.DataFrame:
     """
-    if len(base_pair) != 2:
-        raise ValueError("Base pair must be a 2-letter string.")
-    valid_pairs = ["CG", "GC", "AU", "UA"]
-    if base_pair not in valid_pairs:
-        raise ValueError("Supplied base pair is not valid.")
-    return [pair for pair in valid_pairs if pair != base_pair]
-
-
-def valid_base_pairs_GU(base_pair: str) -> list:
-    """Return other valid base pairs if supplied base pair is valid.
-
-    Given a base pair as a string, returns the other valid base pairs if the
-    supplied base pair is valid. The valid base pairs are `CG`, `GC`, `AU`,
-    `UA`, `GU`, and `UG`.
-
-    :param base_pair: A base pair as a string.
-    :return: A list of other valid base pairs as strings.
+    returns a dataframe from a sequence or a file
+    :param data: can be a seqeunce or a file
+    :return: pd.DataFrame
     """
-    if len(base_pair) != 2:
-        raise ValueError("Base pair must be a 2-letter string.")
-    valid_pairs = ["CG", "GC", "AU", "UA", "GU", "UG"]
-    if base_pair not in valid_pairs:
-        raise ValueError("Supplied base pair is not valid.")
-    return [pair for pair in valid_pairs if pair != base_pair]
+    if csv_file is not None and seq is not None:
+        raise ValueError("cannot specify both a sequence and a csv file")
+    elif csv_file is not None:
+        log.info(f"reading file {csv_file}")
+        df = pd.read_csv(csv_file)
+        log.info(f"csv file contains {len(df)} sequences")
+    else:
+        log.info(f"reading sequence {seq}")
+        if struct is None:
+            struct = fold(seq).dot_bracket
+        data_df = [["seq", seq, struct]]
+        df = pd.DataFrame(data_df, columns=["name", "sequence", "structure"])
+    validate_dataframe(df)
+    return df
 
 
-def mutate_base_pairs(sequence: str, secondary_structure: str) -> list:
-    """Return new sequences with mutated base pairs.
-
-    Given a RNA sequence and its secondary structure as a string of `(` and
-    `)` characters, returns all new sequences with mutations in their base
-    pairs using the `valid_base_pairs_GU` function.
-
-    :param sequence: A RNA sequence as a string.
-    :param secondary_structure: A secondary structure as a string of `(` and
-        `)` characters.
-    :return: A list of new sequences with mutated base pairs as strings.
-    """
-    if len(sequence) != len(secondary_structure):
-        raise ValueError("Seq and sec str must have same length.")
-    stack = []
-    result = []
-    for i, char in enumerate(secondary_structure):
-        if char == '(':
-            stack.append(i)
-        elif char == ')':
-            j = stack.pop()
-            base_pair = sequence[j] + sequence[i]
-            for new_base_pair in valid_base_pairs_GU(base_pair):
-                new_sequence = (sequence[:j] + new_base_pair[0] +
-                                sequence[j+1:i] + new_base_pair[1] +
-                                sequence[i+1:])
-                result.append(new_sequence)
-    return result
-
-
-"""
 # multi commmand format
 @click.group()
 def cli():
@@ -100,14 +58,69 @@ def cli():
 
 
 @cli.command()
-def func1():
-    pass
-"""
+@click.option("-s", "--seq", type=str, required=True)
+@click.option("-ss", "--struct", type=str, default=None)
+@click.option("-n", "--num-muts", type=int, default=1)
+@click.option("-pf", "--param-file", type=click.Path(exists=True), default=None)
+@click.option("-o", "--output", type=click.Path(exists=False), default="output.csv")
+def mut_scan(seq, struct, num_muts, param_file, output):
+    setup_applevel_logger()
+    if struct is None:
+        struct = fold(seq).dot_bracket
+    secstruct = SecStruct(seq, struct)
+    if param_file is not None:
+        params = selection_from_file(param_file)
+        exclude = get_selection(secstruct, params)
+    else:
+        exclude = []
+    results = find_multiple_mutations(secstruct.sequence, num_muts, exclude)
+    data = []
+    for r in results:
+        rf = fold(r.sequence)
+        data.append(
+            {
+                "name": r.name,
+                "sequence": r.sequence,
+                "structure": rf.dot_bracket,
+                "ens_defect": rf.ens_defect,
+            }
+        )
+    df = pd.DataFrame(data)
+    df.to_csv(output, index=False)
 
 
-# @click.command()
-def cli():
-    print(mutate_base_pairs("A&U", "(&)"))
+@cli.command()
+@click.option("-s", "--seq", type=str, required=False)
+@click.option("-ss", "--struct", type=str, default=False)
+@click.option("-csv", "--csv-file", type=click.Path(exists=True), default=None)
+@click.option("-pf", "--param-file", type=click.Path(exists=True), default=None)
+@click.option("-o", "--output", type=click.Path(exists=False), default="output.csv")
+@click.option("-n", "--num-seqs", type=int, default=10)
+def helix_rand(seq, struct, csv_file, param_file, num_seqs, output):
+    setup_applevel_logger()
+    df = get_input_dataframe(seq, struct, csv_file)
+    if param_file is not None:
+        params = selection_from_file(param_file)
+    else:
+        params = {}
+    hr = HelixRandomizer()
+    data = []
+    for _, row in df.iterrows():
+        secstruct = SecStruct(row["sequence"], row["structure"])
+        exclude = get_selection(secstruct, params)
+        for i in range(num_seqs):
+            ens_defect, seq = hr.run(secstruct, exclude)
+            data.append(
+                {
+                    "name": row["name"] + "_" + str(i+1),
+                    "sequence": seq,
+                    "structure": secstruct.structure,
+                    "ens_defect": ens_defect,
+                }
+            )
+    df = pd.DataFrame(data)
+    df.to_csv(output, index=False)
+
 
 
 if __name__ == "__main__":

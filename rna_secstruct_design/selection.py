@@ -1,6 +1,18 @@
 import yaml
+from seq_tools.structure import SequenceStructure, find
 from rna_secstruct.secstruct import SecStruct, MotifSearchParams
 from rna_secstruct_design.util import str_to_range
+
+
+def flatten(l):
+    """Recursively flatten a list of lists of integers."""
+    flattened = []
+    for item in l:
+        if isinstance(item, int):
+            flattened.append(item)
+        else:
+            flattened.extend(flatten(item))
+    return flattened
 
 
 def selection_from_file(filename):
@@ -14,6 +26,8 @@ def get_selection(secstruct, params):
     for k, v in params.items():
         if k.startswith("motif"):
             pos.extend(get_selection_from_motifs(secstruct, v))
+        elif k.startswith("seq_struct"):
+            pos.extend(get_seq_struct(secstruct, v["sequence"], v["structure"]))
         elif k.startswith("flanks"):
             pos.extend(get_all_flanking_pairs(secstruct))
         elif k.startswith("range"):
@@ -66,6 +80,19 @@ def get_selection_from_motifs(secstruct: SecStruct, params):
         for s in strands:
             pos += s
     return pos
+
+
+def get_seq_struct(secstruct: SecStruct, sequence, structure):
+    seq = secstruct.sequence
+    struct = secstruct.structure
+    full = SequenceStructure(seq, struct)
+    sub = SequenceStructure(sequence, structure)
+    bounds = find(full, sub)[0]
+    pos = []
+    for r in bounds:
+        pos.extend(list(range(r[0], r[1])))
+    return pos
+
 
 
 # TODO helix after or before single strand count as flank?

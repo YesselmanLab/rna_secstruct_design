@@ -1,0 +1,7 @@
+range_tlr_1: 6-12
+range_tlr_2: 86-93
+motif_2:
+  name: gaaa_tetraloop
+  extend_flank: 1
+range_1: 20-24
+range_2: 70-78

@@ -1,10 +1,33 @@
 import re
 import random
 from rna_secstruct.secstruct import SecStruct
+from seq_tools import SequenceStructure
 
 BASEPAIRS = ["AU", "UA", "GC", "CG", "GU", "UG"]
 BASEPAIRS_WC = ["AU", "UA", "GC", "CG"]
 BASEPAIRS_GU = ["GU", "UG"]
+
+
+def random_helix(length, gu=0) -> SequenceStructure:
+    """
+    generate a random helix
+    """
+    seq_1 = ""
+    seq_2 = ""
+    basepairs = ["AU", "UA", "GC", "CG", "GU", "UG"]
+    basepairs_wc = ["AU", "UA", "GC", "CG"]
+    bps = []
+    for _ in range(0, gu):
+        bps.append(random.choice(basepairs))
+    for _ in range(0, length - gu):
+        bps.append(random.choice(basepairs_wc))
+    random.shuffle(bps)
+    for bp in bps:
+        seq_1 += bp[0]
+        seq_2 = bp[1] + seq_2
+    seq = seq_1 + "&" + seq_2
+    ss = "(" * length + "&" + ")" * length
+    return SequenceStructure(seq, ss)
 
 
 def str_to_range(x):

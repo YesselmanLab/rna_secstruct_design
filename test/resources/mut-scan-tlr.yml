@@ -1,0 +1,4 @@
+motif:
+  name: tlr
+  extend_flank: 2
+invert: True
