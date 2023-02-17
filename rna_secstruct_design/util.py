@@ -43,13 +43,13 @@ def str_to_range(x):
     :return: A list of integers corresponding to the numbers in the range.
     """
     return sum(
-        (
-            i if len(i) == 1 else list(range(i[0], i[1] + 1))
-            for i in (
+            (
+                i if len(i) == 1 else list(range(i[0], i[1] + 1))
+                for i in (
                 [int(j) for j in i if j] for i in re.findall(r"(\d+),?(?:-(\d+))?", x)
             )
-        ),
-        [],
+            ),
+            [],
     )
 
 
@@ -142,6 +142,15 @@ def max_gc_stretch(sequence, structure) -> int:
         if current_gc_stretch > longest_gc_stretch:
             longest_gc_stretch = current_gc_stretch
     return longest_gc_stretch
+
+
+def hamming(a, b):
+    """hamming distance between two strings"""
+    dist = 0
+    for i, j in zip(a, b):
+        if i != j:
+            dist += 1
+    return dist
 
 
 def can_form_helix(sequence1: str, sequence2: str) -> bool:

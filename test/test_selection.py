@@ -2,7 +2,6 @@ from rna_secstruct import SecStruct
 from rna_secstruct_design.selection import (
     get_selection,
     get_selection_from_motifs,
-    get_seq_struct,
 )
 
 

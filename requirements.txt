@@ -1,5 +1,6 @@
 wheel>=0.22
 click
+editdistance
 pandas
 pyyaml
 # written by our group

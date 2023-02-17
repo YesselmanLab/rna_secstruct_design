@@ -1,5 +1,7 @@
 import click
 import pandas as pd
+import numpy as np
+from multiprocessing import Pool
 
 from vienna import fold
 from rna_secstruct.secstruct import SecStruct
@@ -26,9 +28,9 @@ def validate_dataframe(df) -> None:
 
 
 def get_input_dataframe(
-    seq,
-    struct,
-    csv_file,
+        seq,
+        struct,
+        csv_file,
 ) -> pd.DataFrame:
     """
     returns a dataframe from a sequence or a file
@@ -51,6 +53,45 @@ def get_input_dataframe(
     return df
 
 
+def randomize_helices(df, params, num_seqs):
+    data = []
+    hr = HelixRandomizer()
+    for _, row in df.iterrows():
+        secstruct = SecStruct(row["sequence"], row["structure"])
+        exclude = get_selection(secstruct, params)
+        log.info(row["name"])
+        print(row['name'])
+        for i in range(num_seqs):
+            ens_defect, seq = hr.run(secstruct, exclude)
+            data.append(
+                    {
+                        "name"      : row["name"] + "_" + str(i + 1),
+                        "sequence"  : seq,
+                        "structure" : secstruct.structure,
+                        "ens_defect": ens_defect,
+                    }
+            )
+    return pd.DataFrame(data)
+
+
+def fold_sequences(df):
+    data = []
+    count = 0
+    for _, row in df.iterrows():
+        rf = fold(row["sequence"])
+        if count % 10 == 0:
+            print(count)
+        data.append(
+                {
+                    "name"      : row["name"],
+                    "sequence"  : row["sequence"],
+                    "structure" : rf.dot_bracket,
+                    "ens_defect": rf.ens_defect,
+                }
+        )
+    return pd.DataFrame(data)
+
+
 # multi commmand format
 @click.group()
 def cli():
@@ -63,8 +104,11 @@ def cli():
 @click.option("-n", "--num-muts", type=int, default=1)
 @click.option("-pf", "--param-file", type=click.Path(exists=True), default=None)
 @click.option("-o", "--output", type=click.Path(exists=False), default="output.csv")
-def mut_scan(seq, struct, num_muts, param_file, output):
+@click.option("-p", "--num-processes", type=int, default=1)
+def mut_scan(seq, struct, num_muts, param_file, num_processes, output):
     setup_applevel_logger()
+    if num_processes > 1:
+        log.info(f"running with multiprocess! {num_processes} processes")
     if struct is None:
         struct = fold(seq).dot_bracket
     secstruct = SecStruct(seq, struct)
@@ -74,18 +118,14 @@ def mut_scan(seq, struct, num_muts, param_file, output):
     else:
         exclude = []
     results = find_multiple_mutations(secstruct.sequence, num_muts, exclude)
-    data = []
-    for r in results:
-        rf = fold(r.sequence)
-        data.append(
-            {
-                "name": r.name,
-                "sequence": r.sequence,
-                "structure": rf.dot_bracket,
-                "ens_defect": rf.ens_defect,
-            }
-        )
-    df = pd.DataFrame(data)
+    if num_processes > 1:
+        with Pool(num_processes) as p:
+            results = p.starmap_async(fold_sequences,
+                                [results_s for results_s in np.array_split(results, num_processes)]
+                                )
+            df = pd.concat(results)
+    else:
+        df = fold_sequences(results)
     df.to_csv(output, index=False)
 
 
@@ -96,31 +136,28 @@ def mut_scan(seq, struct, num_muts, param_file, output):
 @click.option("-pf", "--param-file", type=click.Path(exists=True), default=None)
 @click.option("-o", "--output", type=click.Path(exists=False), default="output.csv")
 @click.option("-n", "--num-seqs", type=int, default=10)
-def helix_rand(seq, struct, csv_file, param_file, num_seqs, output):
+@click.option("-p", "--num-processes", type=int, default=1)
+def helix_rand(seq, struct, csv_file, param_file, num_seqs, num_processes, output):
     setup_applevel_logger()
     df = get_input_dataframe(seq, struct, csv_file)
     if param_file is not None:
         params = selection_from_file(param_file)
     else:
         params = {}
-    hr = HelixRandomizer()
-    data = []
-    for _, row in df.iterrows():
-        secstruct = SecStruct(row["sequence"], row["structure"])
-        exclude = get_selection(secstruct, params)
-        for i in range(num_seqs):
-            ens_defect, seq = hr.run(secstruct, exclude)
-            data.append(
-                {
-                    "name": row["name"] + "_" + str(i+1),
-                    "sequence": seq,
-                    "structure": secstruct.structure,
-                    "ens_defect": ens_defect,
-                }
+    if num_processes > 1:
+        with Pool(num_processes) as p:
+            results = p.starmap_async(
+                    randomize_helices,
+                    [
+                        (df_s, params, num_seqs)
+                        for df_s in np.array_split(df, num_processes)
+                    ],
             )
-    df = pd.DataFrame(data)
+        df = pd.concat(results)
+    else:
+        df = randomize_helices(df, params, num_seqs)
+    # df = pd.DataFrame(data)
     df.to_csv(output, index=False)
-
 
 
 if __name__ == "__main__":
