@@ -65,7 +65,8 @@ def randomize_helices(df, params, num_seqs):
             ens_defect, seq = hr.run(secstruct, exclude)
             data.append(
                     {
-                        "name"      : row["name"] + "_" + str(i + 1),
+                        "name"      : row["name"],
+                        "num"       : i,
                         "sequence"  : seq,
                         "structure" : secstruct.structure,
                         "ens_defect": ens_defect,
