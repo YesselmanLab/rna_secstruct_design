@@ -120,7 +120,7 @@ def mut_scan(seq, struct, num_muts, param_file, num_processes, output):
     results = find_multiple_mutations(secstruct.sequence, num_muts, exclude)
     if num_processes > 1:
         with Pool(num_processes) as p:
-            results = p.starmap_async(fold_sequences,
+            results = p.starmap(fold_sequences,
                                 [results_s for results_s in np.array_split(results, num_processes)]
                                 )
             df = pd.concat(results)
@@ -146,7 +146,7 @@ def helix_rand(seq, struct, csv_file, param_file, num_seqs, num_processes, outpu
         params = {}
     if num_processes > 1:
         with Pool(num_processes) as p:
-            results = p.starmap_async(
+            results = p.starmap(
                     randomize_helices,
                     [
                         (df_s, params, num_seqs)
