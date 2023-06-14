@@ -43,13 +43,13 @@ def str_to_range(x):
     :return: A list of integers corresponding to the numbers in the range.
     """
     return sum(
-            (
-                i if len(i) == 1 else list(range(i[0], i[1] + 1))
-                for i in (
+        (
+            i if len(i) == 1 else list(range(i[0], i[1] + 1))
+            for i in (
                 [int(j) for j in i if j] for i in re.findall(r"(\d+),?(?:-(\d+))?", x)
             )
-            ),
-            [],
+        ),
+        [],
     )
 
 

@@ -1,14 +1,17 @@
 import click
+import yaml
 import pandas as pd
 import numpy as np
 from multiprocessing import Pool
 
 from vienna import fold
+from seq_tools.structure import SequenceStructure
 from rna_secstruct.secstruct import SecStruct
 from rna_secstruct_design.selection import selection_from_file, get_selection
 from rna_secstruct_design.logger import setup_applevel_logger, get_logger
 from rna_secstruct_design.mutations import find_multiple_mutations
 from rna_secstruct_design.helix_randomizer import HelixRandomizer
+from rna_secstruct_design.replace import replace_seq_structures
 
 log = get_logger("CLI")
 
@@ -28,9 +31,9 @@ def validate_dataframe(df) -> None:
 
 
 def get_input_dataframe(
-        seq,
-        struct,
-        csv_file,
+    seq,
+    struct,
+    csv_file,
 ) -> pd.DataFrame:
     """
     returns a dataframe from a sequence or a file
@@ -60,37 +63,74 @@ def randomize_helices(df, params, num_seqs):
         secstruct = SecStruct(row["sequence"], row["structure"])
         exclude = get_selection(secstruct, params)
         log.info(row["name"])
-        print(row['name'])
+        print(row["name"])
         for i in range(num_seqs):
             ens_defect, seq = hr.run(secstruct, exclude)
             data.append(
-                    {
-                        "name"      : row["name"],
-                        "num"       : i,
-                        "sequence"  : seq,
-                        "structure" : secstruct.structure,
-                        "ens_defect": ens_defect,
-                    }
+                {
+                    "name": row["name"] + "_" + str(i + 1),
+                    "num": i,
+                    "sequence": seq,
+                    "structure": secstruct.structure,
+                    "ens_defect": ens_defect,
+                }
             )
     return pd.DataFrame(data)
 
 
-def fold_sequences(df):
+def split_list(lst, num_chunks):
+    chunk_size = (
+        len(lst) + num_chunks - 1
+    ) // num_chunks  # Round up to get the chunk size
+    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
+
+
+def fold_sequences(results):
     data = []
     count = 0
-    for _, row in df.iterrows():
-        rf = fold(row["sequence"])
+    for mut in results:
+        rf = fold(mut.sequence)
         if count % 10 == 0:
             print(count)
         data.append(
-                {
-                    "name"      : row["name"],
-                    "sequence"  : row["sequence"],
-                    "structure" : rf.dot_bracket,
-                    "ens_defect": rf.ens_defect,
-                }
+            {
+                "name": mut.name,
+                "sequence": mut.sequence,
+                "structure": rf.dot_bracket,
+                "ens_defect": rf.ens_defect,
+            }
         )
     return pd.DataFrame(data)
+
+
+def replace_seq_struct_dataframe(df, params):
+    data = []
+    for i, row in df.iterrows():
+        seq_struct = SequenceStructure(row["sequence"], row["structure"])
+        for name, param in params.items():
+            search_ss = SequenceStructure(param["sequence"], param["structure"])
+            replace_ss = SequenceStructure(param["r_sequence"], param["r_structure"])
+            seq_struct = replace_seq_structures(seq_struct, search_ss, replace_ss)
+        r = fold(seq_struct.sequence)
+        if r.dot_bracket != seq_struct.structure:
+            print(f"{row['name']} failed to fold with replacement")
+            # print(row["sequence"])
+            # print(seq_struct.sequence)
+            # print(r.dot_bracket)
+            # print(seq_struct.structure)
+            continue
+        data.append(
+            [
+                row["name"],
+                seq_struct.sequence,
+                seq_struct.structure,
+                r.ens_defect,
+            ]
+        )
+    df_results = pd.DataFrame(
+        data, columns=["name", "sequence", "structure", "ens_defect"]
+    )
+    return df_results
 
 
 # multi commmand format
@@ -121,9 +161,10 @@ def mut_scan(seq, struct, num_muts, param_file, num_processes, output):
     results = find_multiple_mutations(secstruct.sequence, num_muts, exclude)
     if num_processes > 1:
         with Pool(num_processes) as p:
-            results = p.starmap(fold_sequences,
-                                [results_s for results_s in np.array_split(results, num_processes)]
-                                )
+            results = p.starmap(
+                fold_sequences,
+                [(chunk,) for chunk in split_list(results, num_processes)],
+            )
             df = pd.concat(results)
     else:
         df = fold_sequences(results)
@@ -148,17 +189,38 @@ def helix_rand(seq, struct, csv_file, param_file, num_seqs, num_processes, outpu
     if num_processes > 1:
         with Pool(num_processes) as p:
             results = p.starmap(
-                    randomize_helices,
-                    [
-                        (df_s, params, num_seqs)
-                        for df_s in np.array_split(df, num_processes)
-                    ],
+                randomize_helices,
+                [
+                    (df_s, params, num_seqs)
+                    for df_s in np.array_split(df, num_processes)
+                ],
             )
         df = pd.concat(results)
     else:
         df = randomize_helices(df, params, num_seqs)
     # df = pd.DataFrame(data)
     df.to_csv(output, index=False)
+
+
+@cli.command()
+@click.argument("csv", type=click.Path(exists=True))
+@click.argument("param_file", type=click.Path(exists=True))
+@click.option("-o", "--output", type=click.Path(exists=False), default="output.csv")
+@click.option("-p", "--num-processes", type=int, default=1)
+def replace(csv, param_file, output, num_processes):
+    df = pd.read_csv(csv)
+    validate_dataframe(df)
+    params = yaml.safe_load(open(param_file))
+    if num_processes > 1:
+        with Pool(num_processes) as p:
+            results = p.starmap(
+                replace_seq_struct_dataframe,
+                [(df_s, params) for df_s in np.array_split(df, num_processes)],
+            )
+            df_results = pd.concat(results)
+    else:
+        df_results = replace_seq_struct_dataframe(df, params)
+    df_results.to_csv(output, index=False)
 
 
 if __name__ == "__main__":
