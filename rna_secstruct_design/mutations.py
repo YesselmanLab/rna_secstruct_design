@@ -2,6 +2,11 @@ import itertools
 from typing import List
 from dataclasses import dataclass
 
+from rna_secstruct import SecStruct
+from seq_tools.structure import SequenceStructure
+
+from rna_secstruct_design.util import random_helix
+
 
 @dataclass(frozen=True, order=True)
 class Mutation:
@@ -185,3 +190,58 @@ def mutate_base_pairs(sequence: str, secondary_structure: str) -> list:
                 )
                 result.append(new_sequence)
     return result
+
+
+def change_helix_length(struct: SecStruct, pos, new_length) -> SecStruct:
+    """
+    Change the length of a helix in a secondary structure.
+    :param struct: a secondary structure
+    :param pos: the position of the helix to change
+    :param new_length: the new length of the helix
+    :return: a new secondary structure with the helix length changed
+    """
+    if new_length < 1:
+        raise ValueError("new length must be greater than 0")
+    m = struct[pos]
+    if not m.is_helix():
+        raise ValueError("motif must be a helix to change its length")
+    length = len(m.sequence.split("&")[0])
+    if new_length == length:
+        return struct
+    struct = SecStruct(struct.sequence, struct.structure)
+    if new_length < length:
+        # weird special cases I think
+        if new_length == 1 and m.has_parent() and m.has_children():
+            raise ValueError("cannot shorten helix to 1 if it has parent and children")
+        # keep flanking pair if child
+        elif new_length == 1 and m.has_children():
+            m_struct = SequenceStructure(m.sequence, m.structure).split_strands()
+            new_struct = m_struct[0][-1].join(m_struct[1][0])
+            struct.change_motif(pos, new_struct.sequence, new_struct.structure)
+        # keep flanking pair of parent if there is one
+        elif new_length == 1:
+            m_struct = SequenceStructure(m.sequence, m.structure).split_strands()
+            new_struct = m_struct[0][0].join(m_struct[1][-1])
+            struct.change_motif(pos, new_struct.sequence, new_struct.structure)
+        # probably a better way to do this but takes the first basepairs on the 5' end
+        # and then the last basepair on the 3' end
+        else:
+            m_struct = SequenceStructure(m.sequence, m.structure).split_strands()
+            new_structs = [
+                m_struct[0][0 : new_length - 1] + m_struct[0][-1],
+                m_struct[1][0 : new_length - 1] + m_struct[1][-1],
+            ]
+            new_struct = new_structs[0].join(new_structs[1])
+            struct.change_motif(pos, new_struct.sequence, new_struct.structure)
+    else:
+        diff = new_length - length
+        m_struct = SequenceStructure(m.sequence, m.structure).split_strands()
+        new_helix = random_helix(diff).split_strands()
+        mid = len(m_struct[0]) // 2
+        new_structs = [
+            m_struct[0].insert(mid, new_helix[0]),
+            m_struct[1].insert(len(m_struct[1]) - mid, new_helix[1]),
+        ]
+        new_struct = new_structs[0].join(new_structs[1])
+        struct.change_motif(pos, new_struct.sequence, new_struct.structure)
+    return struct
