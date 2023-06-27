@@ -4,6 +4,8 @@ from rna_secstruct_design.mutations import (
     find_mutations,
     find_multiple_mutations,
     change_helix_length,
+    scan_helix_lengths,
+    scan_all_helix_lengths,
 )
 from rna_secstruct_design.selection import get_selection
 
@@ -83,3 +85,21 @@ def test_change_helix_length():
     new_secstruct = change_helix_length(seqstruct, 0, 3)
     assert new_secstruct.structure == "(((....)))"
     assert new_secstruct.sequence == "CGAAAAAUCG"
+
+
+def test_scan_helix_lengths():
+    seqstruct = SecStruct("GGGGAAAACCCC", "((((....))))")
+    results = scan_helix_lengths(seqstruct, 0, 1, 10)
+    assert len(results) == 10
+    assert results[0].structure == "(....)"
+    assert results[-1].structure == "((((((((((....))))))))))"
+
+
+def test_scan_all_helix_lengths():
+    seqstruct = SecStruct("GGAGGAAAACCCC", "((.((....))))")
+    h_ranges = {
+        0: [2, 10],
+        2: [2, 10],
+    }
+    results = scan_all_helix_lengths(seqstruct, h_ranges)
+    assert len(results) == 81

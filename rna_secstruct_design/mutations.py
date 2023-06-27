@@ -1,5 +1,5 @@
 import itertools
-from typing import List
+from typing import List, Dict, Tuple
 from dataclasses import dataclass
 
 from rna_secstruct import SecStruct
@@ -245,3 +245,29 @@ def change_helix_length(struct: SecStruct, pos, new_length) -> SecStruct:
         new_struct = new_structs[0].join(new_structs[1])
         struct.change_motif(pos, new_struct.sequence, new_struct.structure)
     return struct
+
+
+def scan_helix_lengths(
+    struct: SecStruct, pos, min_length, max_length
+) -> List[SecStruct]:
+    structs = []
+    for i in range(min_length, max_length + 1):
+        structs.append(change_helix_length(struct, pos, i))
+    return structs
+
+
+def scan_all_helix_lengths(
+    struct: SecStruct, h_ranges: Dict[int, Tuple[int, int]]
+) -> List[SecStruct]:
+    ranges = []
+    helix_pos = []
+    structs = []
+    for k, v in h_ranges.items():
+        ranges.append(list(range(v[0], v[1] + 1)))
+        helix_pos.append(k)
+    for i in itertools.product(*ranges):
+        new_struct = struct.get_copy()
+        for j, pos in enumerate(helix_pos):
+            new_struct = change_helix_length(new_struct, pos, i[j])
+        structs.append(new_struct)
+    return structs
