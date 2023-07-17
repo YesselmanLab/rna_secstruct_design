@@ -179,8 +179,11 @@ def mut_scan(seq, struct, num_muts, param_file, num_processes, output):
 @click.option("-o", "--output", type=click.Path(exists=False), default="output.csv")
 @click.option("-n", "--num-seqs", type=int, default=10)
 @click.option("-p", "--num-processes", type=int, default=1)
-def helix_rand(seq, struct, csv_file, param_file, num_seqs, num_processes, output):
-    setup_applevel_logger()
+@click.option("-d", "--debug", is_flag=True)
+def helix_rand(
+    seq, struct, csv_file, param_file, num_seqs, num_processes, output, debug
+):
+    setup_applevel_logger(is_debug=debug)
     df = get_input_dataframe(seq, struct, csv_file)
     if param_file is not None:
         params = selection_from_file(param_file)

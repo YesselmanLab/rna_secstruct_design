@@ -58,6 +58,8 @@ def get_selection_from_motifs(secstruct: SecStruct, params):
 
     def get_named_motif(params):
         type_name = params.pop("name", None)
+        if type_name is None:
+            return
         if type_name == "ref_hp":
             params["sequence"] = "CGAGUAG"
             params["structure"] = "(.....)"
@@ -67,6 +69,11 @@ def get_selection_from_motifs(secstruct: SecStruct, params):
         elif type_name == "tlr":
             params["sequence"] = "UAUG&CUAAG"
             params["structure"] = "(..(&)...)"
+        elif type_name == "tlr_extended":
+            params["sequence"] = "AUAUGG&CCUAAGU"
+            params["structure"] = "((..((&))...))"
+        else:
+            raise ValueError(f"Unknown motif name: {type_name}")
 
     pos = []
     extend_flank = params.pop("extend_flank", 0)
@@ -92,7 +99,6 @@ def get_seq_struct(secstruct: SecStruct, sequence, structure):
     for r in bounds:
         pos.extend(list(range(r[0], r[1])))
     return pos
-
 
 
 # TODO helix after or before single strand count as flank?

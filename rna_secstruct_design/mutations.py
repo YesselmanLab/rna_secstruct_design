@@ -227,9 +227,14 @@ def change_helix_length(struct: SecStruct, pos, new_length) -> SecStruct:
         # and then the last basepair on the 3' end
         else:
             m_struct = SequenceStructure(m.sequence, m.structure).split_strands()
+            # has to flip the sequence to make the algorithm easier
+            seq_2 = m_struct[1].sequence[::-1]
+            seq_2 = seq_2[: new_length - 1] + seq_2[-1]
+            seq_2 = seq_2[::-1]
+            strand_2 = SequenceStructure(seq_2, ")" * len(seq_2))
             new_structs = [
                 m_struct[0][0 : new_length - 1] + m_struct[0][-1],
-                m_struct[1][0 : new_length - 1] + m_struct[1][-1],
+                strand_2,
             ]
             new_struct = new_structs[0].join(new_structs[1])
             struct.change_motif(pos, new_struct.sequence, new_struct.structure)

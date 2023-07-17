@@ -94,6 +94,10 @@ def test_scan_helix_lengths():
     assert results[0].structure == "(....)"
     assert results[-1].structure == "((((((((((....))))))))))"
 
+    seqstruct = SecStruct("ACCAUCGGAAACGAUGGU", "(((((((....)))))))")
+    new_secstruct = change_helix_length(seqstruct, 0, 5)
+    print(new_secstruct)
+
 
 def test_scan_all_helix_lengths():
     seqstruct = SecStruct("GGAGGAAAACCCC", "((.((....))))")

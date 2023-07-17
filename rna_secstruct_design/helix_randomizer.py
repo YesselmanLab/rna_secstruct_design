@@ -84,6 +84,8 @@ class HelixRandomizer(object):
             return h_seq
 
     def run(self, secstruct, exclude=None, attempts=10):
+        log.debug("running helix randomizer")
+        log.debug(f"exclude: {exclude}")
         secstruct = SecStruct(secstruct.sequence, secstruct.structure)
         if exclude is None:
             log.debug("no exclude given, using flanks")
