@@ -27,7 +27,7 @@ def get_selection(secstruct, params):
         if k.startswith("motif"):
             pos.extend(get_selection_from_motifs(secstruct, v))
         elif k.startswith("seq_struct"):
-            pos.extend(get_seq_struct(secstruct, v["sequence"], v["structure"]))
+            pos.extend(get_seq_struct(secstruct, v))
         elif k.startswith("flanks"):
             pos.extend(get_all_flanking_pairs(secstruct))
         elif k.startswith("range"):
@@ -35,6 +35,26 @@ def get_selection(secstruct, params):
     if "invert" in params:
         pos = invert_exclude_list(pos, len(secstruct.sequence))
     return pos
+
+
+def get_named_motif(params):
+    type_name = params.pop("name", None)
+    if type_name is None:
+        return
+    if type_name == "ref_hp":
+        params["sequence"] = "CGAGUAG"
+        params["structure"] = "(.....)"
+    elif type_name == "gaaa_tetraloop":
+        params["sequence"] = "GGAAAC"
+        params["structure"] = "(....)"
+    elif type_name == "tlr":
+        params["sequence"] = "UAUG&CUAAG"
+        params["structure"] = "(..(&)...)"
+    elif type_name == "tlr_extended":
+        params["sequence"] = "AUAUGG&CCUAAGU"
+        params["structure"] = "((..((&))...))"
+    else:
+        raise ValueError(f"Unknown motif name: {type_name}")
 
 
 def get_selection_from_motifs(secstruct: SecStruct, params):
@@ -56,25 +76,6 @@ def get_selection_from_motifs(secstruct: SecStruct, params):
             new_strands.append(new_strand_filtered)
         return new_strands
 
-    def get_named_motif(params):
-        type_name = params.pop("name", None)
-        if type_name is None:
-            return
-        if type_name == "ref_hp":
-            params["sequence"] = "CGAGUAG"
-            params["structure"] = "(.....)"
-        elif type_name == "gaaa_tetraloop":
-            params["sequence"] = "GGAAAC"
-            params["structure"] = "(....)"
-        elif type_name == "tlr":
-            params["sequence"] = "UAUG&CUAAG"
-            params["structure"] = "(..(&)...)"
-        elif type_name == "tlr_extended":
-            params["sequence"] = "AUAUGG&CCUAAGU"
-            params["structure"] = "((..((&))...))"
-        else:
-            raise ValueError(f"Unknown motif name: {type_name}")
-
     pos = []
     extend_flank = params.pop("extend_flank", 0)
     get_named_motif(params)
@@ -89,11 +90,13 @@ def get_selection_from_motifs(secstruct: SecStruct, params):
     return pos
 
 
-def get_seq_struct(secstruct: SecStruct, sequence, structure):
+def get_seq_struct(secstruct: SecStruct, v):
     seq = secstruct.sequence
     struct = secstruct.structure
     full = SequenceStructure(seq, struct)
-    sub = SequenceStructure(sequence, structure)
+    if "name" in v:
+        get_named_motif(v)
+    sub = SequenceStructure(v["sequence"], v["structure"])
     bounds = find(full, sub)[0]
     pos = []
     for r in bounds:
