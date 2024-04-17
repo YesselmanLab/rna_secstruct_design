@@ -1,11 +1,16 @@
 import itertools
+import random
 from typing import List, Dict, Tuple
 from dataclasses import dataclass
 
 from rna_secstruct import SecStruct
+from rna_secstruct.parser import ConnectivityList
 from seq_tools.structure import SequenceStructure
 
 from rna_secstruct_design.util import random_helix
+
+
+# introduce mutations into the sequence at allowed positions #########################
 
 
 @dataclass(frozen=True, order=True)
@@ -123,73 +128,102 @@ def find_multiple_mutations(sequence: str, num: int, exclude: list) -> List[Muta
     return results
 
 
-def valid_base_pairs(base_pair: str) -> list:
-    """Return other valid base pairs if supplied base pair is valid.
+# mutate basepairs ###################################################################
 
-    Given a base pair as a string, returns the other valid base pairs if the
-    supplied base pair is valid.
 
-    :param base_pair: A base pair as a string.
-    :return: A list of other valid base pairs as strings.
+def possible_basepair_mutations(bp: str, gu=True) -> list:
     """
-    if len(base_pair) != 2:
-        raise ValueError("Base pair must be a 2-letter string.")
-    valid_pairs = ["CG", "GC", "AU", "UA"]
-    if base_pair not in valid_pairs:
-        raise ValueError("Supplied base pair is not valid.")
-    return [pair for pair in valid_pairs if pair != base_pair]
-
-
-def valid_base_pairs_GU(base_pair: str) -> list:
-    """Return other valid base pairs if supplied base pair is valid.
-
-    Given a base pair as a string, returns the other valid base pairs if the
-    supplied base pair is valid. The valid base pairs are `CG`, `GC`, `AU`,
-    `UA`, `GU`, and `UG`.
-
-    :param base_pair: A base pair as a string.
-    :return: A list of other valid base pairs as strings.
+    Given a RNA basepair such as GC or CG returns all possible other basepairs it could be.
     """
-    if len(base_pair) != 2:
-        raise ValueError("Base pair must be a 2-letter string.")
-    valid_pairs = ["CG", "GC", "AU", "UA", "GU", "UG"]
-    if base_pair not in valid_pairs:
-        raise ValueError("Supplied base pair is not valid.")
-    return [pair for pair in valid_pairs if pair != base_pair]
+    bps = ["AU", "UA", "CG", "GC", "GU", "UG"]
+    if not gu:
+        bps = ["AU", "UA", "CG", "GC"]
+    if bp not in bps:
+        raise ValueError(f"Invalid basepair: {bp}")
+    return [b for b in bps if b != bp]
 
 
-def mutate_base_pairs(sequence: str, secondary_structure: str) -> list:
-    """Return new sequences with mutated base pairs.
-
-    Given a RNA sequence and its secondary structure as a string of `(` and
-    `)` characters, returns all new sequences with mutations in their base
-    pairs using the `valid_base_pairs_GU` function.
-
-    :param sequence: A RNA sequence as a string.
-    :param secondary_structure: A secondary structure as a string of `(` and
-        `)` characters.
-    :return: A list of new sequences with mutated base pairs as strings.
+def get_basepair_mutation(struct: SecStruct, pos, new_bp=None, gu=True) -> SecStruct:
     """
-    if len(sequence) != len(secondary_structure):
-        raise ValueError("Seq and sec str must have same length.")
-    stack = []
-    result = []
-    for i, char in enumerate(secondary_structure):
-        if char == "(":
-            stack.append(i)
-        elif char == ")":
-            j = stack.pop()
-            base_pair = sequence[j] + sequence[i]
-            for new_base_pair in valid_base_pairs_GU(base_pair):
-                new_sequence = (
-                    sequence[:j]
-                    + new_base_pair[0]
-                    + sequence[j + 1 : i]
-                    + new_base_pair[1]
-                    + sequence[i + 1 :]
-                )
-                result.append(new_sequence)
-    return result
+    Given a secondary structure and a basepair position, returns a new secondary structure
+    with a new basepair at the position specified if the indentity is not specified pick
+    at random
+    """
+    cl = ConnectivityList(struct.sequence, struct.structure)
+    if not cl.is_nucleotide_paired(pos):
+        raise ValueError("position must be a basepair")
+
+    max_val = pos
+    min_val = cl.get_paired_nucleotide(pos)
+    if cl.get_paired_nucleotide(pos) > pos:
+        max_val = cl.get_paired_nucleotide(pos)
+        min_val = pos
+    if new_bp is None:
+        new_bp = random.choice(
+            possible_basepair_mutations(cl.get_basepair(min_val), gu)
+        )
+    sequence = struct.sequence
+    new_sequence = (
+        sequence[:min_val]
+        + new_bp[0]
+        + sequence[min_val + 1 : max_val]
+        + new_bp[1]
+        + sequence[max_val + 1 :]
+    )
+    return SecStruct(new_sequence, struct.structure)
+
+
+def get_basepair_mutations(
+    struct: SecStruct, num: int, exclude=None, gu=True, flank_bp=False
+) -> List[str]:
+    if exclude is None:
+        exclude = []
+    allowed_pos = []
+    for i in range(0, len(struct.structure)):
+        # exclude positions in exclude
+        if i in exclude:
+            continue
+        # has to be a opening pair
+        if struct.structure[i] != "(":
+            continue
+        # if we are allowing flanking basepairs then accept
+        if flank_bp:
+            allowed_pos.append(i)
+            continue
+        if i == 0:
+            allowed_pos.append(i)
+            continue
+        # are we flanking a non basepair then dont accept
+        if struct.structure[i - 1] == "." or struct.structure[i + 1] == ".":
+            continue
+        allowed_pos.append(i)
+    cl = ConnectivityList(struct.sequence, struct.structure)
+    seen = []
+    combos = itertools.product(allowed_pos, repeat=num)
+    sequence = struct.sequence
+    sequences = []
+    for muts in combos:
+        muts = sorted(muts)
+        if len(set(muts)) != len(muts):
+            continue
+        mut_key = "-".join([str(x) for x in muts])
+        if mut_key in seen:
+            continue
+        for m in muts:
+            new_bp = random.choice(possible_basepair_mutations(cl.get_basepair(m), gu))
+            sequence = (
+                sequence[:m]
+                + new_bp[0]
+                + sequence[m + 1 : cl.get_paired_nucleotide(m)]
+                + new_bp[1]
+                + sequence[cl.get_paired_nucleotide(m) + 1 :]
+            )
+        seen.append(mut_key)
+        sequences.append(sequence)
+    return sequences
+
+
+# change helix length ###############################################################
 
 
 def change_helix_length(struct: SecStruct, pos, new_length) -> SecStruct:
@@ -255,6 +289,11 @@ def change_helix_length(struct: SecStruct, pos, new_length) -> SecStruct:
 def scan_helix_lengths(
     struct: SecStruct, pos, min_length, max_length
 ) -> List[SecStruct]:
+    """
+    Given a secondary structure and a helix position, returns all possible
+    secondary structures with helices of lengths between min_length and
+    max_length.
+    """
     structs = []
     for i in range(min_length, max_length + 1):
         structs.append(change_helix_length(struct, pos, i))
@@ -264,6 +303,15 @@ def scan_helix_lengths(
 def scan_all_helix_lengths(
     struct: SecStruct, h_ranges: Dict[int, Tuple[int, int]]
 ) -> List[SecStruct]:
+    """
+    Iterates though all possible helical lengths in a given secstruct
+    object. The helical lengths are defined by a dictionary of the position
+    of the helix in secstruct.
+    :param struct: a secondary structure
+    :param h_ranges: a dictionary of the positions of the helices and the
+        minimum and maximum lengths of the helices
+    :return: a list of secondary structures with all possible helical lengths
+    """
     ranges = []
     helix_pos = []
     structs = []
@@ -274,5 +322,181 @@ def scan_all_helix_lengths(
         new_struct = struct.get_copy()
         for j, pos in enumerate(helix_pos):
             new_struct = change_helix_length(new_struct, pos, i[j])
+        structs.append(new_struct)
+    return structs
+
+
+# unpaired insertions ################################################################
+
+
+def add_unpaired(
+    struct: SequenceStructure, pos, bulge_size, all_nucleotides=False
+) -> List[SequenceStructure]:
+    """
+    Add an unpaired residue to an RNA.
+    :param struct: a secondary structure
+    :param pos: the position of the helix to change
+    :param bulge_size: the size of the bulge to add
+    :return: a new secondary structure with the bulge added
+    """
+    if pos < 1:
+        raise ValueError("position must be greater than 0")
+    if bulge_size < 1:
+        raise ValueError("bulge size must be greater than 0")
+    sequence = list(struct.sequence)
+    structure = list(struct.structure)
+    nucs = itertools.product("AUCG", repeat=bulge_size)
+    nucs = ["".join(x) for x in list(nucs)]
+    structs = []
+    for nuc in nucs:
+        new_seq = sequence[:]
+        new_str = structure[:]
+        new_seq.insert(pos, nuc)
+        new_str.insert(pos, "." * len(nuc))
+        new_struct = SequenceStructure("".join(new_seq), "".join(new_str))
+        structs.append(new_struct)
+        if not all_nucleotides:
+            break
+    return structs
+
+
+def add_unpaired_sweep(
+    struct: SequenceStructure, n_include, exclude=None, all_nucleotides=False
+) -> List[SequenceStructure]:
+    """
+    Create a list of secondary structures each with n unpaired nucleotide added.
+    :param struct: a secondary structure
+    :param n_include: the number of unpaired nucleotides to add
+    :param exclude: a list of positions to exclude
+    :param all_nucleotides: if True, add all possible nucleotides at each position
+    :return: a list of secondary structures with n unpaired nucleotides added
+    """
+    if exclude is None:
+        exclude = []
+    if n_include < 1:
+        raise ValueError("n_include must be greater than 0")
+    unpaired = []
+    for i, char in enumerate(struct.structure):
+        if i < 1:
+            continue
+        if i in exclude:
+            continue
+        if char != ".":
+            unpaired.append(i)
+    if len(unpaired) < n_include:
+        raise ValueError(
+            "n_include must be less than the number of unpaired nucleotides"
+        )
+    combos = itertools.combinations(unpaired, n_include)
+    structs = []
+    for combo in combos:
+        combo = sorted(combo)
+        new_structs = [SequenceStructure(struct.sequence, struct.structure)]
+        cur_structs = []
+        while len(combo) > 0:
+            pos = combo.pop()
+            for s in new_structs:
+                new_structs = add_unpaired(s, pos, 1, all_nucleotides)
+                for ns in new_structs:
+                    if ns.structure.find(".(.") != -1 or ns.structure.find(".).") != -1:
+                        continue
+                    cur_structs.append(ns)
+            new_structs = cur_structs
+            cur_structs = []
+        structs.extend(new_structs)
+    return structs
+
+
+# deletions ##########################################################################
+
+
+def remove_nucleotides(struct: SequenceStructure, pos) -> SequenceStructure:
+    """
+    Remove residues from an RNA.
+    :param struct: a secondary structure
+    :param pos: a list of positions to remove
+    :return: a new secondary structure with residues removed
+    """
+    pos = sorted(pos, reverse=True)
+    sequence = list(struct.sequence)
+    structure = list(struct.structure)
+    for p in pos:
+        sequence = sequence[:p] + sequence[p + 1 :]
+        structure = structure[:p] + structure[p + 1 :]
+    new_struct = SequenceStructure("".join(sequence), "".join(structure))
+    return new_struct
+
+
+def remove_unpaired_nucleotide_sweep(
+    struct: SequenceStructure, n_remove: int, exclude=None
+) -> List[SequenceStructure]:
+    """
+    Create a list of secondary structures each with n unpaired nucleotide removed.
+    :param struct: a secondary structure
+    :param n_remove: the number of unpaired nucleotides to remove
+    """
+    if exclude is None:
+        exclude = []
+    if n_remove < 1:
+        raise ValueError("n_remove must be greater than 0")
+    sequence = list(struct.sequence)
+    structure = list(struct.structure)
+    unpaired = []
+    for i, char in enumerate(structure):
+        if i in exclude:
+            continue
+        if char == ".":
+            unpaired.append(i)
+    if len(unpaired) < n_remove:
+        raise ValueError(
+            "n_remove must be less than the number of unpaired nucleotides"
+        )
+    combos = itertools.combinations(unpaired, n_remove)
+    structs = []
+    for combo in combos:
+        new_seq = sequence[:]
+        new_str = structure[:]
+        for pos in combo:
+            new_seq[pos] = "X"
+            new_str[pos] = "X"
+        new_seq = [x for x in new_seq if x != "X"]
+        new_str = [x for x in new_str if x != "X"]
+        new_struct = SequenceStructure("".join(new_seq), "".join(new_str))
+        structs.append(new_struct)
+    return structs
+
+
+def remove_nucleotide_sweep(
+    struct: SequenceStructure, n_remove: int, exclude: None
+) -> List[SequenceStructure]:
+    """
+    Create a list of secondary structures each with n nucleotides removed.
+    :param struct: a secondary structure
+    :param n_remove: the number of nucleotides to remove
+    """
+    if exclude is None:
+        exclude = []
+    if n_remove < 1:
+        raise ValueError("n_remove must be greater than 0")
+    sequence = list(struct.sequence)
+    structure = list(struct.structure)
+    nucleotides = []
+    for i, char in enumerate(structure):
+        if i in exclude:
+            continue
+        nucleotides.append(i)
+    if len(nucleotides) < n_remove:
+        raise ValueError("n_remove must be less than the number of nucleotides")
+    combos = itertools.combinations(nucleotides, n_remove)
+    structs = []
+    for combo in combos:
+        new_seq = sequence[:]
+        new_str = structure[:]
+        for pos in combo:
+            new_seq[pos] = "X"
+            new_str[pos] = "X"
+        new_seq = [x for x in new_seq if x != "X"]
+        new_str = [x for x in new_str if x != "X"]
+        new_struct = SequenceStructure("".join(new_seq), "".join(new_str))
         structs.append(new_struct)
     return structs

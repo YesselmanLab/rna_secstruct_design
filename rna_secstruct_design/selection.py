@@ -118,5 +118,8 @@ def get_all_flanking_pairs(secstruct: SecStruct):
 def invert_exclude_list(exclude, seq_len):
     allowed = list(range(seq_len))
     for e in exclude:
-        allowed.remove(e)
+        try:
+            allowed.remove(e)
+        except:
+            pass
     return allowed

@@ -1,11 +1,18 @@
 from rna_secstruct.secstruct import SecStruct
+from seq_tools.structure import SequenceStructure
 from rna_secstruct_design.mutations import (
     possible_nucleotide_mutations,
     find_mutations,
     find_multiple_mutations,
+    get_basepair_mutation,
+    get_basepair_mutations,
     change_helix_length,
     scan_helix_lengths,
     scan_all_helix_lengths,
+    add_unpaired,
+    add_unpaired_sweep,
+    remove_nucleotides,
+    remove_unpaired_nucleotide_sweep,
 )
 from rna_secstruct_design.selection import get_selection
 
@@ -96,7 +103,6 @@ def test_scan_helix_lengths():
 
     seqstruct = SecStruct("ACCAUCGGAAACGAUGGU", "(((((((....)))))))")
     new_secstruct = change_helix_length(seqstruct, 0, 5)
-    print(new_secstruct)
 
 
 def test_scan_all_helix_lengths():
@@ -107,3 +113,53 @@ def test_scan_all_helix_lengths():
     }
     results = scan_all_helix_lengths(seqstruct, h_ranges)
     assert len(results) == 81
+
+
+def test_add_unpaired():
+    seqstruct = SequenceStructure("GGGGAAAACCCC", "((((....))))")
+    new_secstructs = add_unpaired(seqstruct, 1, 2, all_nucleotides=True)
+    assert len(new_secstructs) == 16
+
+
+def test_add_unpaired_sweep():
+    seqstruct = SequenceStructure("GGGGAAAACCCC", "((((....))))")
+    exclude = [2, 3, 4, 5, 6, 7, 8]
+    new_secstructs = add_unpaired_sweep(seqstruct, 2, exclude, all_nucleotides=True)
+    assert len(new_secstructs) == 32
+
+
+def test_remove_nucleotides():
+    seqstruct = SequenceStructure("GGGGAAAACCCC", "((((....))))")
+    new_secstruct = remove_nucleotides(seqstruct, [4, 5])
+    assert new_secstruct.sequence == "GGGGAACCCC"
+    assert new_secstruct.structure == "((((..))))"
+    seqstruct = SequenceStructure("GGAAGGAAAACCCC", "((..((....))))")
+    new_secstruct = remove_nucleotides(seqstruct, [2, 3, 6])
+    assert new_secstruct.sequence == "GGGGAAACCCC"
+    assert new_secstruct.structure == "((((...))))"
+
+
+def test_remove_nucleotide_sweep():
+    seqstruct = SequenceStructure("GGGGAAAACCCC", "((((....))))")
+    new_secstructs = remove_unpaired_nucleotide_sweep(seqstruct, 1)
+    assert len(new_secstructs) == 4
+    seq = "CGACAUGGAGUUUCGCCGAGCCUGCGAACUACAGCGAACACUCUUCGGAGUACCCGCUGCGUAGGCGUUUGACGCGAGGCUCCUAAAUCG"
+    ss = "(((...((((((((((((((((((((.....(((((...((((....))))...))))))))))))..)))..))))))))))....)))"
+    seqstruct = SequenceStructure(seq, ss)
+    new_secstructs = remove_unpaired_nucleotide_sweep(seqstruct, 2)
+
+
+def test_mutate_basepair():
+    seq = "GGGAAACCC"
+    ss = "(((...)))"
+    struct = SecStruct(seq, ss)
+    new_struct = get_basepair_mutation(struct, 0)
+    assert new_struct.sequence[-1] != "C"
+
+
+def test_mutate_basepairs():
+    seq = "GGGGAAACCCC"
+    ss = "((((...))))"
+    struct = SecStruct(seq, ss)
+    new_seqs = get_basepair_mutations(struct, 2)
+    print(new_seqs)
