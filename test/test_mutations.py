@@ -6,6 +6,7 @@ from rna_secstruct_design.mutations import (
     find_multiple_mutations,
     get_basepair_mutation,
     get_basepair_mutations,
+    get_basepair_mutuations_random,
     change_helix_length,
     scan_helix_lengths,
     scan_all_helix_lengths,
@@ -162,4 +163,11 @@ def test_mutate_basepairs():
     ss = "((((...))))"
     struct = SecStruct(seq, ss)
     new_seqs = get_basepair_mutations(struct, 2)
-    print(new_seqs)
+
+
+def test_mutate_basepair_random():
+    seq = "GGGGAAACCCC"
+    ss = "((((...))))"
+    struct = SecStruct(seq, ss)
+    new_seqs = get_basepair_mutuations_random(struct, 3)
+    assert new_seqs[-1] != "C"

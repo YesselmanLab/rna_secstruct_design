@@ -174,7 +174,7 @@ def get_basepair_mutation(struct: SecStruct, pos, new_bp=None, gu=True) -> SecSt
 
 
 def get_basepair_mutations(
-    struct: SecStruct, num: int, exclude=None, gu=True, flank_bp=False
+    struct: SecStruct, num: int, exclude=None, gu=True, flank_bp=False, max_muts=1000000
 ) -> List[str]:
     if exclude is None:
         exclude = []
@@ -200,9 +200,12 @@ def get_basepair_mutations(
     cl = ConnectivityList(struct.sequence, struct.structure)
     seen = []
     combos = itertools.product(allowed_pos, repeat=num)
-    sequence = struct.sequence
     sequences = []
+    combos = list(combos)
+    random.shuffle(combos)
+    count = 0
     for muts in combos:
+        sequence = str(struct.sequence)
         muts = sorted(muts)
         if len(set(muts)) != len(muts):
             continue
@@ -218,7 +221,58 @@ def get_basepair_mutations(
                 + new_bp[1]
                 + sequence[cl.get_paired_nucleotide(m) + 1 :]
             )
+        count += 1
+        if count > max_muts:
+            break
         seen.append(mut_key)
+        sequences.append(sequence)
+    return sequences
+
+
+def get_basepair_mutuations_random(
+    struct: SecStruct, num: int, exclude=None, gu=True, flank_bp=False, max_muts=1
+):
+    if exclude is None:
+        exclude = []
+    allowed_pos = []
+    for i in range(0, len(struct.structure)):
+        # exclude positions in exclude
+        if i in exclude:
+            continue
+        # has to be a opening pair
+        if struct.structure[i] != "(":
+            continue
+        # if we are allowing flanking basepairs then accept
+        if flank_bp:
+            allowed_pos.append(i)
+            continue
+        if i == 0:
+            allowed_pos.append(i)
+            continue
+        # are we flanking a non basepair then dont accept
+        if struct.structure[i - 1] == "." or struct.structure[i + 1] == ".":
+            continue
+        allowed_pos.append(i)
+    if len(allowed_pos) < num:
+        raise ValueError("not enough positions to mutate")
+    cl = ConnectivityList(struct.sequence, struct.structure)
+    sequences = []
+    while len(sequences) < max_muts:
+        muts = random.sample(allowed_pos, num)
+        if len(set(muts)) != len(muts):
+            continue
+        sequence = str(struct.sequence)
+        muts = sorted(muts)
+        mut_key = "-".join([str(x) for x in muts])
+        for m in muts:
+            new_bp = random.choice(possible_basepair_mutations(cl.get_basepair(m), gu))
+            sequence = (
+                sequence[:m]
+                + new_bp[0]
+                + sequence[m + 1 : cl.get_paired_nucleotide(m)]
+                + new_bp[1]
+                + sequence[cl.get_paired_nucleotide(m) + 1 :]
+            )
         sequences.append(sequence)
     return sequences
 
