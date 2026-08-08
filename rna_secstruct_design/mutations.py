@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 from rna_secstruct import SecStruct
 from rna_secstruct.parser import ConnectivityList
-from seq_tools.structure import SequenceStructure
 
 from rna_secstruct_design.util import random_helix
 
@@ -303,32 +302,32 @@ def change_helix_length(struct: SecStruct, pos, new_length) -> SecStruct:
             raise ValueError("cannot shorten helix to 1 if it has parent and children")
         # keep flanking pair if child
         elif new_length == 1 and m.has_children():
-            m_struct = SequenceStructure(m.sequence, m.structure).split_strands()
-            new_struct = m_struct[0][-1].join(m_struct[1][0])
+            m_struct = SecStruct(m.sequence, m.structure).split_strands()
+            new_struct = m_struct[0][-1:].join(m_struct[1][0:1])
             struct.change_motif(pos, new_struct.sequence, new_struct.structure)
         # keep flanking pair of parent if there is one
         elif new_length == 1:
-            m_struct = SequenceStructure(m.sequence, m.structure).split_strands()
-            new_struct = m_struct[0][0].join(m_struct[1][-1])
+            m_struct = SecStruct(m.sequence, m.structure).split_strands()
+            new_struct = m_struct[0][0:1].join(m_struct[1][-1:])
             struct.change_motif(pos, new_struct.sequence, new_struct.structure)
         # probably a better way to do this but takes the first basepairs on the 5' end
         # and then the last basepair on the 3' end
         else:
-            m_struct = SequenceStructure(m.sequence, m.structure).split_strands()
+            m_struct = SecStruct(m.sequence, m.structure).split_strands()
             # has to flip the sequence to make the algorithm easier
             seq_2 = m_struct[1].sequence[::-1]
             seq_2 = seq_2[: new_length - 1] + seq_2[-1]
             seq_2 = seq_2[::-1]
-            strand_2 = SequenceStructure(seq_2, ")" * len(seq_2))
+            strand_2 = SecStruct(seq_2, ")" * len(seq_2))
             new_structs = [
-                m_struct[0][0 : new_length - 1] + m_struct[0][-1],
+                m_struct[0][0 : new_length - 1] + m_struct[0][-1:],
                 strand_2,
             ]
             new_struct = new_structs[0].join(new_structs[1])
             struct.change_motif(pos, new_struct.sequence, new_struct.structure)
     else:
         diff = new_length - length
-        m_struct = SequenceStructure(m.sequence, m.structure).split_strands()
+        m_struct = SecStruct(m.sequence, m.structure).split_strands()
         new_helix = random_helix(diff).split_strands()
         mid = len(m_struct[0]) // 2
         new_structs = [
@@ -384,8 +383,8 @@ def scan_all_helix_lengths(
 
 
 def add_unpaired(
-    struct: SequenceStructure, pos, bulge_size, all_nucleotides=False
-) -> List[SequenceStructure]:
+    struct: SecStruct, pos, bulge_size, all_nucleotides=False
+) -> List[SecStruct]:
     """
     Add an unpaired residue to an RNA.
     :param struct: a secondary structure
@@ -407,7 +406,7 @@ def add_unpaired(
         new_str = structure[:]
         new_seq.insert(pos, nuc)
         new_str.insert(pos, "." * len(nuc))
-        new_struct = SequenceStructure("".join(new_seq), "".join(new_str))
+        new_struct = SecStruct("".join(new_seq), "".join(new_str))
         structs.append(new_struct)
         if not all_nucleotides:
             break
@@ -415,8 +414,8 @@ def add_unpaired(
 
 
 def add_unpaired_sweep(
-    struct: SequenceStructure, n_include, exclude=None, all_nucleotides=False
-) -> List[SequenceStructure]:
+    struct: SecStruct, n_include, exclude=None, all_nucleotides=False
+) -> List[SecStruct]:
     """
     Create a list of secondary structures each with n unpaired nucleotide added.
     :param struct: a secondary structure
@@ -445,7 +444,7 @@ def add_unpaired_sweep(
     structs = []
     for combo in combos:
         combo = sorted(combo)
-        new_structs = [SequenceStructure(struct.sequence, struct.structure)]
+        new_structs = [SecStruct(struct.sequence, struct.structure)]
         cur_structs = []
         while len(combo) > 0:
             pos = combo.pop()
@@ -464,7 +463,7 @@ def add_unpaired_sweep(
 # deletions ##########################################################################
 
 
-def remove_nucleotides(struct: SequenceStructure, pos) -> SequenceStructure:
+def remove_nucleotides(struct: SecStruct, pos) -> SecStruct:
     """
     Remove residues from an RNA.
     :param struct: a secondary structure
@@ -477,13 +476,13 @@ def remove_nucleotides(struct: SequenceStructure, pos) -> SequenceStructure:
     for p in pos:
         sequence = sequence[:p] + sequence[p + 1 :]
         structure = structure[:p] + structure[p + 1 :]
-    new_struct = SequenceStructure("".join(sequence), "".join(structure))
+    new_struct = SecStruct("".join(sequence), "".join(structure))
     return new_struct
 
 
 def remove_unpaired_nucleotide_sweep(
-    struct: SequenceStructure, n_remove: int, exclude=None
-) -> List[SequenceStructure]:
+    struct: SecStruct, n_remove: int, exclude=None
+) -> List[SecStruct]:
     """
     Create a list of secondary structures each with n unpaired nucleotide removed.
     :param struct: a secondary structure
@@ -515,14 +514,14 @@ def remove_unpaired_nucleotide_sweep(
             new_str[pos] = "X"
         new_seq = [x for x in new_seq if x != "X"]
         new_str = [x for x in new_str if x != "X"]
-        new_struct = SequenceStructure("".join(new_seq), "".join(new_str))
+        new_struct = SecStruct("".join(new_seq), "".join(new_str))
         structs.append(new_struct)
     return structs
 
 
 def remove_nucleotide_sweep(
-    struct: SequenceStructure, n_remove: int, exclude: None
-) -> List[SequenceStructure]:
+    struct: SecStruct, n_remove: int, exclude: None
+) -> List[SecStruct]:
     """
     Create a list of secondary structures each with n nucleotides removed.
     :param struct: a secondary structure
@@ -551,6 +550,6 @@ def remove_nucleotide_sweep(
             new_str[pos] = "X"
         new_seq = [x for x in new_seq if x != "X"]
         new_str = [x for x in new_str if x != "X"]
-        new_struct = SequenceStructure("".join(new_seq), "".join(new_str))
+        new_struct = SecStruct("".join(new_seq), "".join(new_str))
         structs.append(new_struct)
     return structs

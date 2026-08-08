@@ -112,7 +112,7 @@ class HelixRandomizer(object):
         while True:
             seq_count += 1
             if seq_count > 1000:
-                log.warn("Could not find a sequence that satisfies constraints")
+                log.warning("Could not find a sequence that satisfies constraints")
                 break
             for h in secstruct.get_helices():
                 new_seq = self.__get_randomized_helix_sequence(h, exclude)

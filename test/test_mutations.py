@@ -1,5 +1,4 @@
 from rna_secstruct.secstruct import SecStruct
-from seq_tools.structure import SequenceStructure
 from rna_secstruct_design.mutations import (
     possible_nucleotide_mutations,
     find_mutations,
@@ -117,36 +116,36 @@ def test_scan_all_helix_lengths():
 
 
 def test_add_unpaired():
-    seqstruct = SequenceStructure("GGGGAAAACCCC", "((((....))))")
+    seqstruct = SecStruct("GGGGAAAACCCC", "((((....))))")
     new_secstructs = add_unpaired(seqstruct, 1, 2, all_nucleotides=True)
     assert len(new_secstructs) == 16
 
 
 def test_add_unpaired_sweep():
-    seqstruct = SequenceStructure("GGGGAAAACCCC", "((((....))))")
+    seqstruct = SecStruct("GGGGAAAACCCC", "((((....))))")
     exclude = [2, 3, 4, 5, 6, 7, 8]
     new_secstructs = add_unpaired_sweep(seqstruct, 2, exclude, all_nucleotides=True)
     assert len(new_secstructs) == 32
 
 
 def test_remove_nucleotides():
-    seqstruct = SequenceStructure("GGGGAAAACCCC", "((((....))))")
+    seqstruct = SecStruct("GGGGAAAACCCC", "((((....))))")
     new_secstruct = remove_nucleotides(seqstruct, [4, 5])
     assert new_secstruct.sequence == "GGGGAACCCC"
     assert new_secstruct.structure == "((((..))))"
-    seqstruct = SequenceStructure("GGAAGGAAAACCCC", "((..((....))))")
+    seqstruct = SecStruct("GGAAGGAAAACCCC", "((..((....))))")
     new_secstruct = remove_nucleotides(seqstruct, [2, 3, 6])
     assert new_secstruct.sequence == "GGGGAAACCCC"
     assert new_secstruct.structure == "((((...))))"
 
 
 def test_remove_nucleotide_sweep():
-    seqstruct = SequenceStructure("GGGGAAAACCCC", "((((....))))")
+    seqstruct = SecStruct("GGGGAAAACCCC", "((((....))))")
     new_secstructs = remove_unpaired_nucleotide_sweep(seqstruct, 1)
     assert len(new_secstructs) == 4
     seq = "CGACAUGGAGUUUCGCCGAGCCUGCGAACUACAGCGAACACUCUUCGGAGUACCCGCUGCGUAGGCGUUUGACGCGAGGCUCCUAAAUCG"
     ss = "(((...((((((((((((((((((((.....(((((...((((....))))...))))))))))))..)))..))))))))))....)))"
-    seqstruct = SequenceStructure(seq, ss)
+    seqstruct = SecStruct(seq, ss)
     new_secstructs = remove_unpaired_nucleotide_sweep(seqstruct, 2)
 
 

@@ -5,7 +5,6 @@ import numpy as np
 from multiprocessing import Pool
 
 from vienna import fold
-from seq_tools.structure import SequenceStructure
 from rna_secstruct.secstruct import SecStruct
 from rna_secstruct_design.selection import selection_from_file, get_selection
 from rna_secstruct_design.logger import setup_applevel_logger, get_logger
@@ -106,10 +105,10 @@ def fold_sequences(results):
 def replace_seq_struct_dataframe(df, params):
     data = []
     for i, row in df.iterrows():
-        seq_struct = SequenceStructure(row["sequence"], row["structure"])
+        seq_struct = SecStruct(row["sequence"], row["structure"])
         for name, param in params.items():
-            search_ss = SequenceStructure(param["sequence"], param["structure"])
-            replace_ss = SequenceStructure(param["r_sequence"], param["r_structure"])
+            search_ss = SecStruct(param["sequence"], param["structure"])
+            replace_ss = SecStruct(param["r_sequence"], param["r_structure"])
             seq_struct = replace_seq_structures(seq_struct, search_ss, replace_ss)
         r = fold(seq_struct.sequence)
         if r.dot_bracket != seq_struct.structure:

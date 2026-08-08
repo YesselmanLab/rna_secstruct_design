@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install pytest pytest-cov
+
+      # folding goes through the ViennaRNA python bindings that vienna pulls in,
+      # so a missing binding shows up here rather than as a confusing test failure
+      - name: Check the folding backend
+        run: |
+          python -c "import RNA; print('ViennaRNA', RNA.__version__)"
+          python -c "
+          from vienna import fold
+          r = fold('GGGGAAAACCCC')
+          assert r.dot_bracket == '((((....))))', r.dot_bracket
+          print('fold ok:', r.dot_bracket)
+          "
+
+      - name: Import every module
+        run: |
+          python -c "
+          import importlib
+          for m in ['cli', 'constraints', 'dataframe', 'helix_randomizer',
+                    'logger', 'mutations', 'replace', 'selection', 'util']:
+              importlib.import_module(f'rna_secstruct_design.{m}')
+          print('all modules import')
+          "
+
+      - name: Test
+        run: python -m pytest test/ -v --cov=rna_secstruct_design --cov-report=term-missing
+
+      - name: Check the console script is wired up
+        run: |
+          rna-struct-design --help
+          rna-struct-design mut-scan --help
+
+  examples:
+    name: examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install jupyter nbconvert
+
+      # every example asserts its own output, so a non-zero exit means a feature
+      # in the readme has actually broken
+      - name: Run every example
+        run: |
+          status=0
+          for f in examples/*.py; do
+            echo "::group::$f"
+            python "$f" || { echo "::error file=$f::example failed"; status=1; }
+            echo "::endgroup::"
+          done
+          exit $status
+
+      - name: Execute the notebook
+        run: |
+          jupyter nbconvert --to notebook --execute --stdout \
+            notebooks/examples.ipynb > /dev/null
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: python -m pip install black pylint
+
+      - name: Check formatting
+        run: black --check --diff rna_secstruct_design/ test/ examples/
+
+      # errors only, this codebase is not pylint clean and that is not the point
+      # of this job -- it is here to catch undefined names and bad imports
+      - name: Check for errors
+        run: pylint --disable=all --enable=E rna_secstruct_design/
