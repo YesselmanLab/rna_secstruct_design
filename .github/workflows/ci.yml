@@ -108,15 +108,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
 
-      # pinned so a new black release cannot turn an unrelated PR red
+      # the package itself is installed so pylint can resolve the third party
+      # imports, otherwise every module just reports import-error and the real
+      # findings are drowned out. black and pylint are pinned so a new release
+      # cannot turn an unrelated PR red.
       - name: Install
-        run: python -m pip install black==26.5.1 pylint==4.0.6
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install black==26.5.1 pylint==4.0.6
 
       - name: Check formatting
         run: black --check --diff rna_secstruct_design/ test/ examples/
 
       # errors only, this codebase is not pylint clean and that is not the point
-      # of this job -- it is here to catch undefined names and bad imports
+      # of this job -- it is here to catch undefined names and bad attributes
       - name: Check for errors
         run: pylint --disable=all --enable=E rna_secstruct_design/
