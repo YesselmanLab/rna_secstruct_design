@@ -1,7 +1,6 @@
 import yaml
-from seq_tools.structure import SequenceStructure, find
 from rna_secstruct.secstruct import SecStruct, MotifSearchParams
-from rna_secstruct_design.util import str_to_range
+from rna_secstruct_design.util import find_seq_struct, str_to_range
 
 
 def flatten(l):
@@ -32,6 +31,13 @@ def get_selection(secstruct, params):
             pos.extend(get_all_flanking_pairs(secstruct))
         elif k.startswith("range"):
             pos.extend([x - 1 for x in str_to_range(v)])
+        elif k == "invert":
+            continue
+        else:
+            raise ValueError(
+                f"unknown selection key: {k}, must start with one of "
+                "'motif', 'seq_struct', 'flanks', 'range' or be 'invert'"
+            )
     if "invert" in params:
         pos = invert_exclude_list(pos, len(secstruct.sequence))
     return pos
@@ -77,6 +83,8 @@ def get_selection_from_motifs(secstruct: SecStruct, params):
         return new_strands
 
     pos = []
+    # copy so the caller's params dict is not consumed by the pops below
+    params = dict(params)
     extend_flank = params.pop("extend_flank", 0)
     get_named_motif(params)
     msg = MotifSearchParams(**params)
@@ -91,15 +99,19 @@ def get_selection_from_motifs(secstruct: SecStruct, params):
 
 
 def get_seq_struct(secstruct: SecStruct, v):
-    seq = secstruct.sequence
-    struct = secstruct.structure
-    full = SequenceStructure(seq, struct)
+    # copy so the caller's params dict is not consumed by get_named_motif
+    v = dict(v)
     if "name" in v:
         get_named_motif(v)
-    sub = SequenceStructure(v["sequence"], v["structure"])
-    bounds = find(full, sub)[0]
+    sub = SecStruct(v["sequence"], v["structure"])
+    matches = find_seq_struct(secstruct, sub)
+    if len(matches) == 0:
+        raise ValueError(
+            f"cannot find {sub.sequence} / {sub.structure} in "
+            f"{secstruct.sequence} / {secstruct.structure}"
+        )
     pos = []
-    for r in bounds:
+    for r in matches[0]:
         pos.extend(list(range(r[0], r[1])))
     return pos
 

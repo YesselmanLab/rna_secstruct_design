@@ -9,7 +9,7 @@ class SequenceConstraint:
         raise NotImplementedError("apply method not implemented")
 
 
-class SequenceStructureConstraint:
+class SecStructConstraint:
     def __init__(self):
         pass
 
@@ -46,7 +46,7 @@ class MaxRepeatingIncreaseConstraint(SequenceConstraint):
         return True
 
 
-class MaxGCStretchConstraint(SequenceStructureConstraint):
+class MaxGCStretchConstraint(SecStructConstraint):
     def __init__(self, max_value):
         super().__init__()
         self.max_value = max_value
@@ -58,7 +58,7 @@ class MaxGCStretchConstraint(SequenceStructureConstraint):
         return True
 
 
-class MaxGCStretchIncreaseConstraint(SequenceStructureConstraint):
+class MaxGCStretchIncreaseConstraint(SecStructConstraint):
     def __init__(self, max_value, sequence, structure):
         super().__init__()
         self.max_value = max_value

@@ -1,33 +1,78 @@
 import re
 import random
+from typing import List, Tuple
+
 from rna_secstruct.secstruct import SecStruct
-from seq_tools import SequenceStructure
 
 BASEPAIRS = ["AU", "UA", "GC", "CG", "GU", "UG"]
 BASEPAIRS_WC = ["AU", "UA", "GC", "CG"]
 BASEPAIRS_GU = ["GU", "UG"]
 
+Bounds = List[Tuple[int, int]]
 
-def random_helix(length, gu=0) -> SequenceStructure:
+
+def find_seq_struct(full: SecStruct, sub: SecStruct) -> List[Bounds]:
     """
-    generate a random helix
+    Find every placement of a sub sequence/structure inside a larger one.
+
+    Each strand of ``sub`` (strands are separated by ``&``) is matched
+    independently, in order and without overlapping, against ``full``. Both the
+    sequence and the dot-bracket structure have to match.
+
+    :param full: the sequence/structure being searched
+    :param sub: the sequence/structure to search for, may be multi strand
+    :return: a list of matches, each match being a list of ``(start, end)``
+        bounds -- one per strand of ``sub`` -- where ``end`` is exclusive
     """
+    full_seq, full_struct = full.sequence, full.structure
+    strands = list(zip(sub.sequence.split("&"), sub.structure.split("&")))
+    matches: List[Bounds] = []
+
+    def search(strand_num: int, min_start: int, bounds: Bounds) -> None:
+        if strand_num == len(strands):
+            matches.append(list(bounds))
+            return
+        s_seq, s_struct = strands[strand_num]
+        for start in range(min_start, len(full_seq) - len(s_seq) + 1):
+            end = start + len(s_seq)
+            if full_seq[start:end] != s_seq or full_struct[start:end] != s_struct:
+                continue
+            # a strand cannot span a strand break in the target
+            if "&" in full_seq[start:end]:
+                continue
+            bounds.append((start, end))
+            search(strand_num + 1, end, bounds)
+            bounds.pop()
+
+    search(0, 0, [])
+    return matches
+
+
+def random_helix(length, gu=0) -> SecStruct:
+    """
+    Generate a random helix.
+
+    :param length: the number of basepairs in the helix
+    :param gu: how many of those basepairs should be GU wobbles, the rest are
+        Watson-Crick
+    :return: a two strand SecStruct
+    """
+    if gu > length:
+        raise ValueError(f"cannot have {gu} gu basepairs in a helix of length {length}")
     seq_1 = ""
     seq_2 = ""
-    basepairs = ["AU", "UA", "GC", "CG", "GU", "UG"]
-    basepairs_wc = ["AU", "UA", "GC", "CG"]
     bps = []
     for _ in range(0, gu):
-        bps.append(random.choice(basepairs))
+        bps.append(random_gu_basepair())
     for _ in range(0, length - gu):
-        bps.append(random.choice(basepairs_wc))
+        bps.append(random_wc_basepair())
     random.shuffle(bps)
     for bp in bps:
         seq_1 += bp[0]
         seq_2 = bp[1] + seq_2
     seq = seq_1 + "&" + seq_2
     ss = "(" * length + "&" + ")" * length
-    return SequenceStructure(seq, ss)
+    return SecStruct(seq, ss)
 
 
 def str_to_range(x):

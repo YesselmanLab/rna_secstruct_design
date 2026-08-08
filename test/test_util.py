@@ -1,5 +1,9 @@
+from rna_secstruct.secstruct import SecStruct
+
 from rna_secstruct_design.util import (
     can_form_helix,
+    find_seq_struct,
+    random_helix,
     str_to_range,
     max_repeating_nucleotides,
     max_gc_stretch,
@@ -100,3 +104,59 @@ def test_can_form_helix():
     assert can_form_helix("GAC", "GUC")
     assert can_form_helix("AGAC", "GUCU")
     assert not can_form_helix("GUC", "GUG")
+
+
+class TestFindSeqStruct:
+    def test_single_strand(self):
+        """A single strand match returns one bound"""
+        full = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
+        sub = SecStruct("GGGGAAAACCCC", "((((....))))")
+        assert find_seq_struct(full, sub) == [[(2, 14)]]
+
+    def test_two_strands(self):
+        """A two strand match returns one bound per strand"""
+        full = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
+        sub = SecStruct("GGGG&CCCC", "((((&))))")
+        assert find_seq_struct(full, sub) == [[(2, 6), (10, 14)]]
+
+    def test_structure_must_match(self):
+        """The sequence matching is not enough, the structure has to match too"""
+        full = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
+        assert find_seq_struct(full, SecStruct("GGGG", "((((")) == [[(2, 6)]]
+        assert find_seq_struct(full, SecStruct("GGGG", "....")) == []
+
+    def test_multiple_matches(self):
+        """Every placement is returned"""
+        full = SecStruct("GAAACGAAAC", "(...)(...)")
+        assert find_seq_struct(full, SecStruct("GAAAC", "(...)")) == [
+            [(0, 5)],
+            [(5, 10)],
+        ]
+
+    def test_strands_do_not_overlap(self):
+        """Strands are matched in order and cannot reuse the same positions"""
+        full = SecStruct("GAAAC", "(...)")
+        assert find_seq_struct(full, SecStruct("G&G", "(&(")) == []
+
+    def test_no_match(self):
+        """A missing substructure gives an empty list rather than raising"""
+        full = SecStruct("AAGGGGAAAACCCC", "..((((....))))")
+        assert find_seq_struct(full, SecStruct("UUUU", "....")) == []
+
+
+def test_random_helix():
+    """random_helix builds a valid two strand SecStruct"""
+    helix = random_helix(5)
+    assert isinstance(helix, SecStruct)
+    assert helix.structure == "(((((&)))))"
+    strand_1, strand_2 = helix.sequence.split("&")
+    assert can_form_helix(strand_1, strand_2)
+
+
+def test_random_helix_gu():
+    """Asking for all GU pairs gives a helix of only GU pairs"""
+    helix = random_helix(4, gu=4)
+    strand_1, strand_2 = helix.sequence.split("&")
+    assert can_form_helix(strand_1, strand_2)
+    for i, nt in enumerate(strand_1):
+        assert f"{nt}{strand_2[-i - 1]}" in ("GU", "UG")

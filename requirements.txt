@@ -1,9 +1,8 @@
-wheel>=0.22
 click
-editdistance
+numpy
 pandas
 pyyaml
 # written by our group
 rna_secstruct @ git+https://github.com/jyesselm/rna_secstruct@main
-rna_seq_tools
-vienna
+# vienna 0.8 folds through the ViennaRNA python bindings, which it pulls in
+vienna>=0.8.0
