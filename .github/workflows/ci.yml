@@ -109,8 +109,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      # pinned so a new black release cannot turn an unrelated PR red
       - name: Install
-        run: python -m pip install black pylint
+        run: python -m pip install black==26.5.1 pylint==4.0.6
 
       - name: Check formatting
         run: black --check --diff rna_secstruct_design/ test/ examples/

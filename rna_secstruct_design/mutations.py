@@ -8,7 +8,6 @@ from rna_secstruct.parser import ConnectivityList
 
 from rna_secstruct_design.util import random_helix
 
-
 # introduce mutations into the sequence at allowed positions #########################
 
 
